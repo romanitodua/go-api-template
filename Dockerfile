@@ -1,4 +1,15 @@
-FROM ubuntu:latest
-LABEL authors="Romac"
+ARG GO_VERSION=1.22-alpine
 
-ENTRYPOINT ["top", "-b"]
+FROM golang:${GO_VERSION} AS build
+
+WORKDIR /go/src/app
+
+COPY . .
+RUN go build -v -o api .
+
+# Final Stage
+FROM alpine:latest
+COPY --from=build /go/src/app/api /api
+# Copy other necessary files
+ENV Origins="*"
+CMD ["/api"]
