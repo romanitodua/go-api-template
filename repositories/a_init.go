@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"errors"
 	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -56,4 +57,35 @@ func ignoreNotFound[T any](object *T, err error) (*T, error) {
 		return nil, nil
 	}
 	return object, err
+}
+func (rs *Repositories) Update(dbObjectToUpdate interface{}, InObject interface{}) error {
+	destValue := reflect.ValueOf(dbObjectToUpdate)
+	srcValue := reflect.ValueOf(InObject)
+
+	if destValue.Kind() != reflect.Ptr || destValue.IsNil() {
+		return errors.New("dbObjectToUpdate must be a non-nil pointer")
+	}
+	destValue = destValue.Elem()
+
+	if srcValue.Kind() != reflect.Struct {
+		return errors.New("InObject must be a struct")
+	}
+
+	for i := 0; i < srcValue.NumField(); i++ {
+		srcField := srcValue.Field(i)
+		srcType := srcValue.Type().Field(i)
+
+		if !srcField.CanInterface() {
+			continue
+		}
+
+		destField := destValue.FieldByName(srcType.Name)
+
+		if destField.IsValid() && destField.CanSet() {
+			if !reflect.DeepEqual(srcField.Interface(), reflect.Zero(srcField.Type()).Interface()) {
+				destField.Set(srcField)
+			}
+		}
+	}
+	return rs.Save(dbObjectToUpdate) // this saves/updates the object to db
 }
